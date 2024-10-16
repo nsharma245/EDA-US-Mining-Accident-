@@ -1,0 +1,512 @@
+```{=html}
+<p style="font-family: times, serif; font-size:22pt; font-style:bold"0>Importing Libraries</p>
+```
+```{r}
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(patchwork)
+library(gapminder)
+library(plotly)
+library(ggcorrplot)
+library(rpart)
+library(rpart.plot)
+
+theme_set(theme_classic())
+
+```
+
+<p style="font-family: times, serif; font-size:30pt; font-style:bold">
+
+DATA OVERVIEW
+
+</p>
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Reading The Data
+
+</p>
+
+```{r}
+accidents <- read.csv(file = 'C:/Users/neha0/Desktop/UWA SEM 1/Computataional Data Analysis/us_data_2000.csv')
+```
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Viewing The Data
+
+</p>
+
+<p>glimpse() makes it possible to see every column data in a dataframe.</p>
+
+```{r}
+glimpse(accidents)
+
+```
+
+<p>summary() function computes summary statistics of data and model objects.</p>
+
+```{r}
+  summary(accidents)
+```
+
+<p>head(n) function is used to read first n rows of data set (n = number of rows).</p>
+
+```{r}
+  accidents %>% head(5)
+```
+
+<p>tail(n) function is used to read last n rows of data set (n = number of rows).</p>
+
+```{r}
+ accidents %>% tail(5)
+```
+
+<p style="font-family: times, serif; font-size:30pt; font-style:bold">
+
+DATA CLEANING AND TRANSFORMATION
+
+</p>
+
+<p style="font-family: times, serif; font-size:18pt; font-style:bold">
+
+Data Cleaning is a crucial step to clean and validate the dataset before starting with analysis, visualization, or predictive modeling.
+
+There are various techniques that are used for cleaning the data:
+
+1.  Remove duplicate values or irrelevant columns.
+2.  Filter unwanted outliers.
+3.  Handle missing data.
+4.  Remove empty data.
+
+</p>
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Converting Spaces and Question Mark Characters to NA
+
+</p>
+
+<p>We have converted all the values containing empty spaces and question marks to NA value for the easy analysis to data.</p>
+
+```{r}
+for(i in 1:ncol(accidents)){
+  accidents[,i] <- (replace(accidents[,i], accidents[,i]=="", NA))
+  accidents[,i] <- (replace(accidents[,i], accidents[,i]=="?", NA))
+  accidents[,i] <- (replace(accidents[,i], accidents[,i]=="? ", NA))
+  accidents[,i] <- (replace(accidents[,i], accidents[,i]=="NO VALUE FOUND", NA))
+}
+```
+
+<p style="font-family: times, serif; font-size:18pt; font-style:bold">
+
+Getting All the Columns that have NA percentage Greater than 50% in Data frame
+
+</p>
+
+```{r}
+df = data.frame()
+rows <- nrow(accidents)
+for(i in 1:ncol(accidents)){
+  per <- sum(is.na(accidents[,i])) / rows
+  percentage <- per*100
+  column <- names(accidents[i])
+   if(percentage > 50){ #check for percentage greater than 50
+     output <- c(column, percentage)
+     df = rbind(df, output)
+   }
+}
+colnames(df)<-c("Col", "Per")
+```
+
+<p style="font-family: times, serif; font-size:18pt; font-style:bold">
+
+Now, Lets plot the graph to check the columns having percentage greater than 50
+
+</p>
+
+```{r}
+options(repr.plot.width = 1200, repr.plot.height = 8)
+df %>% 
+    ggplot() + 
+    geom_col(mapping = aes(x=Col, y = Per , fill=Col)) + 
+    labs(x = "Columns with NA", y="Percentage (%) ", title ="NA Percentage by Column")+
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.6))
+```
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Dropping Columns
+
+</p>
+
+<p>We will now drop all the columns that have NA percentage greater than 50%.</p>
+
+```{r}
+accidents <- accidents %>% select(-all_of(df$Col))
+```
+
+<p style="font-family: times, serif; font-size:14pt; font-style:bold">
+
+There are some unuseful variables in the dataset which will not give us insights about mines accident like MINE_ID, CONTROLLER_ID, OPERATOR_ID, NARRATIVE, DOCUMENT_NO, FIPS_STATE_CD,CAL_YR
+
+</p>
+
+```{r}
+not_useful <- c("MINE_ID", "CONTROLLER_ID", "OPERATOR_ID", "NARRATIVE", "DOCUMENT_NO","FIPS_STATE_CD","CAL_YR")
+accidents <- accidents %>% select(-all_of(not_useful))
+```
+
+<p style="font-family: times, serif; font-size:14pt; font-style:bold">
+
+Some columns have many unique values therefore it should be removed because they will not be use in the visualization like CONTROLLER_NAME, OPERATOR_NAME
+
+</p>
+
+```{r}
+length(unique(accidents$CONTROLLER_NAME))
+length(unique(accidents$OPERATOR_NAME))
+not_useful <- c("CONTROLLER_NAME", "OPERATOR_NAME")
+accidents <- accidents %>% select(-all_of(not_useful))
+```
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Dealing with NA values in Integer and Float Columns
+
+</p>
+
+<p>We will modify the NA values of columns (DAYS_LOST, DAYS_RESTRICT, SCHEDULE_CHARGE, TOT_EXPER, MINE_EXPER, JOB_EXPER) with the median of the column because the data is Skewed.</p>
+
+<p>Add values to "DAYS_LOST" Column</p>
+
+```{r}
+summary(accidents$DAYS_LOST)
+
+accidents$DAYS_LOST[is.na(accidents$DAYS_LOST)] <- median(accidents$DAYS_LOST, na.rm = T)
+ median(accidents$DAYS_LOST, na.rm = T)
+```
+
+<p>Add values to "DAYS_RESTRICT" Column</p>
+
+```{r}
+summary(accidents$DAYS_RESTRICT)
+
+accidents$DAYS_RESTRICT[is.na(accidents$DAYS_RESTRICT)] <- median(accidents$DAYS_RESTRICT, na.rm = T)
+median(accidents$DAYS_RESTRICT, na.rm = T)
+```
+
+<p>Add values to "SCHEDULE_CHARGE" Column</p>
+
+```{r}
+summary(accidents$SCHEDULE_CHARGE)
+
+accidents$SCHEDULE_CHARGE[is.na(accidents$SCHEDULE_CHARGE)] <- median(accidents$SCHEDULE_CHARGE, na.rm = T)
+median(accidents$SCHEDULE_CHARGE, na.rm = T)
+```
+
+<p>Add values to "TOT_EXPER" Column</p>
+
+```{r}
+summary(accidents$TOT_EXPER)
+accidents$TOT_EXPER[is.na(accidents$TOT_EXPER)] <- median(accidents$TOT_EXPER, na.rm = T)
+median(accidents$TOT_EXPER, na.rm = T)
+```
+
+<p>Add values to "MINE_EXPER" Column</p>
+
+```{r}
+summary(accidents$MINE_EXPER)
+accidents$MINE_EXPER[is.na(accidents$MINE_EXPER)] <- median(accidents$MINE_EXPER, na.rm = T)
+median(accidents$MINE_EXPER, na.rm = T)
+```
+
+<p>Add values to "JOB_EXPER" Column</p>
+
+```{r}
+summary(accidents$JOB_EXPER)
+accidents$JOB_EXPER[is.na(accidents$JOB_EXPER)] <- median(accidents$JOB_EXPER, na.rm = T)
+median(accidents$JOB_EXPER, na.rm = T)
+```
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Dealing with NA values in String Columns
+
+</p>
+
+<p>We will fill all the NA values with the mode of the column which means the value which is repeating highest number of times.</p>
+
+<p>Add values to "TRANS_TERM" Column</p>
+
+```{r}
+uniqx <- unique(accidents$TRANS_TERM)
+accidents$TRANS_TERM[is.na(accidents$TRANS_TERM)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+```
+
+<p>Add values to "DEGREE_INJURY" Column</p>
+
+```{r}
+uniqx <- unique(accidents$DEGREE_INJURY)
+accidents$DEGREE_INJURY[is.na(accidents$DEGREE_INJURY)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+uniqx <- unique(accidents$DEGREE_INJURY_CD)
+accidents$DEGREE_INJURY_CD[is.na(accidents$DEGREE_INJURY_CD)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+```
+
+```{r}
+uniqx <- unique(accidents$NATURE_INJURY)
+accidents$NATURE_INJURY[is.na(accidents$NATURE_INJURY)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+uniqx <- unique(accidents$NATURE_INJURY_CD)
+accidents$NATURE_INJURY_CD[is.na(accidents$NATURE_INJURY_CD)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+```
+
+```{r}
+uniqx <- unique(accidents$CLASSIFICATION_CD)
+accidents$CLASSIFICATION_CD[is.na(accidents$CLASSIFICATION_CD)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+uniqx <- unique(accidents$CLASSIFICATION)
+accidents$CLASSIFICATION[is.na(accidents$CLASSIFICATION)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+```
+
+```{r}
+uniqx <- unique(accidents$ACCIDENT_TYPE_CD)
+accidents$ACCIDENT_TYPE_CD[is.na(accidents$ACCIDENT_TYPE_CD)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+uniqx <- unique(accidents$ACCIDENT_TYPE)
+accidents$ACCIDENT_TYPE[is.na(accidents$ACCIDENT_TYPE)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+```
+
+```{r}
+uniqx <- unique(accidents$OCCUPATION_CD)
+accidents$OCCUPATION_CD[is.na(accidents$OCCUPATION_CD)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+uniqx <- unique(accidents$OCCUPATION)
+accidents$OCCUPATION[is.na(accidents$OCCUPATION)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+```
+
+```{r}
+uniqx <- unique(accidents$ACTIVITY)
+accidents$ACTIVITY[is.na(accidents$ACTIVITY)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+uniqx <- unique(accidents$ACTIVITY_CD)
+accidents$ACTIVITY_CD[is.na(accidents$ACTIVITY_CD)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+```
+
+```{r}
+uniqx <- unique(accidents$INJURY_SOURCE_CD)
+accidents$INJURY_SOURCE_CD[is.na(accidents$INJURY_SOURCE_CD)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+uniqx <- unique(accidents$INJURY_SOURCE)
+accidents$INJURY_SOURCE[is.na(accidents$INJURY_SOURCE)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+```
+
+```{r}
+uniqx <- unique(accidents$INJ_BODY_PART_CD)
+accidents$INJ_BODY_PART_CD[is.na(accidents$INJ_BODY_PART_CD)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+
+uniqx <- unique(accidents$INJ_BODY_PART)
+accidents$INJ_BODY_PART[is.na(accidents$INJ_BODY_PART)] <- uniqx[which.max(tabulate(match(accidents, uniqx)))]
+```
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Transforming date column for visualization
+
+</p>
+
+<p>We will seperate the Date, month and Year to analyze</p>
+
+```{r}
+accidents %>% select(ACCIDENT_DT) %>% head(5)
+```
+
+```{r}
+
+  accidents <- accidents %>%
+  separate(ACCIDENT_DT, into = c("ACCIDENT_DATE", "ACCIDENT_MONTH","ACCIDENT_YEAR"), sep = "/")
+
+  accidents %>%
+  select(ACCIDENT_DATE, ACCIDENT_MONTH, ACCIDENT_YEAR) %>%
+  head(5)
+```
+
+<p style="font-family: times, serif; font-size:16pt; font-style:bold">
+
+Adding our clean and final data to new file after all data cleaning process and transformation.
+
+</p>
+
+```{r}
+write_csv(accidents, "finalaccidents.csv")
+```
+
+<p style="font-family: times, serif; font-size:30pt; font-style:bold">
+
+EDA (Exploratory Data Analysis And Visualization)
+
+</p>
+
+<p style="font-family: times, serif; font-size:16pt; font-style:bold">
+
+Reading clean data
+
+</p>
+
+```{r}
+accidents <- read_csv("./finalaccidents.csv", show_col_types = FALSE)
+view(accidents)
+summary(accidents)
+```
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Locations in Mine where most accidents occured
+
+</p>
+
+```{r}
+ggplot(accidents, aes(x = SUBUNIT)) + 
+  geom_bar() +
+  labs(x = "",
+       y = "Number of Accident Occur",
+       title = "Locations Where Accident Occur") + geom_text(stat='count', aes(label=..count..), vjust=0.7, hjust = 0)+
+  coord_flip()
+```
+
+<p>We can see that most of the Accidents occur in Mine were in Underground location.</p>
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Degree of Injury Percentage in Metal/Non Metal or Coal Mines
+
+</p>
+
+```{r}
+ggplot(accidents, 
+       aes(x = factor(DEGREE_INJURY,
+                      levels = unique(DEGREE_INJURY)),
+           fill = factor(COAL_METAL_IND, 
+                         levels =unique(COAL_METAL_IND),
+                         labels = unique(COAL_METAL_IND)))) + 
+  geom_bar(position = "fill") + coord_flip()+
+  scale_y_continuous(breaks = seq(0, 1, .2), 
+                     label = percent) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(y = "Percent", 
+       fill = "Type of Mine(Metal/Non Metal or Coal)",
+       x = "Degree of the Injury",
+       title = "Degree Injury in different Mines") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.6))
+
+```
+
+<p>In Coal mine most of accident occurs with Degree Injury of Accident whereas in Metal/ Non Metal Mine most of injuries involve non employees.</p>
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Count of Accidents in every month of the past 15 Years
+
+</p>
+
+```{r}
+g_top <- accidents %>%
+  count(ACCIDENT_MONTH) %>%
+  ggplot(aes(ACCIDENT_MONTH, n)) +
+  geom_line(aes(group = 1), linetype = "dashed", size = 1, colour = "blue") +
+  geom_point() +
+  labs(y = "Count",
+       x = NULL,
+    title = "Pattern between number of accidents and months") +
+  scale_x_discrete(labels = c("Jan", "Feb", "Mar", "Apr", "May",
+                              "Jun", "Jul", "Aug", "Sep", "Oct",
+                              "Nov", "Dec")) 
+  
+g_top
+```
+
+<p>Most of the Accidents occurred in the Month of August.</p>
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Persons terminated or transferred every year with respect to experience of working in mines
+
+</p>
+
+```{r}
+p <- ggplot(accidents, aes(FISCAL_YR, MINE_EXPER, shape = factor(TRANS_TERM))) 
+p +
+  geom_point(aes(colour = factor(TRANS_TERM)), size = 4) +
+  geom_point(colour = "grey90", size = 1.5)+
+  scale_y_continuous(limits=c(0.0, 50.0))+
+  ggtitle("Persons terminated/transferred every year with respect to the experience in Mining")
+```
+
+<p>We can see that maximum employees were termination or transferred were between 0 to 20 years of experince in the 15 years of Span.</p>
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Correlation between Injury and Accidents
+
+</p>
+
+```{r}
+accidentsdf <- data.frame(accidents$CLASSIFICATION_CD, accidents$ACCIDENT_TYPE_CD, accidents$OCCUPATION_CD, accidents$ACTIVITY_CD, accidents$INJURY_SOURCE_CD, accidents$NATURE_INJURY_CD, accidents$INJ_BODY_PART_CD)
+
+calc_mode <- function(x){
+  
+  # List the distinct / unique values
+  distinct_values <- unique(x)
+  
+  # Count the occurrence of each distinct value
+  distinct_tabulate <- tabulate(match(x, distinct_values))
+  
+  # Return the value with the highest occurrence
+  distinct_values[which.max(distinct_tabulate)]
+}
+
+accidentsdf %>% 
+  mutate(across(everything(), ~replace_na(.x, calc_mode(.x)))) -> accidentsdf
+
+for(i in 1:ncol(accidentsdf)){
+  accidentsdf[,i] <- as.integer(accidentsdf[,i])
+}
+#sapply(accidentsdf, class)
+
+```
+
+```{r}
+cor(accidentsdf) %>% ggcorrplot(show.diag = F, type="lower", lab=TRUE, lab_size=2)
+
+```
+
+<p>The maximum correlation is between Activity and Classification. Which means under which circumstance the injury occured and the task the injured person was performing that very moment.</p>
+
+<p style="font-family: times, serif; font-size:22pt; font-style:bold">
+
+Number of Days lost due to Injuries
+
+</p>
+
+```{r}
+
+accidents %>% 
+ ggplot(aes(x = NATURE_INJURY)) +  coord_flip()+
+  geom_point(aes(y = DAYS_LOST, color = "nature of injuries")) +
+  geom_line(aes(y = DAYS_LOST, color = "nature of injuries")) +
+   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) +
+  theme(axis.text.y = element_text(angle = 0, vjust = 0.5, hjust=1, size= 7)) +
+  #scale_y_continuous(labels = scales::percent) + 
+  ggtitle("Days Lost due to Injury") + 
+  labs(x="Nature of Injury", y="Days Lost")
+```
+
+<p>We can see that most of days lost from work is due to Sprain, strain or rupt disc injuries.</p>
+
+------------------------------------------------------------------------
+
+\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\*\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
